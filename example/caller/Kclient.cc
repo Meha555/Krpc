@@ -1,16 +1,15 @@
-#include "Krpcapplication.h"
 #include "../user.pb.h"
+#include "Krpcchannel.h"
+#include "Krpcconfig.h"
 #include "Krpccontroller.h"
-#include <iostream>
 #include <atomic>
-#include <thread>
 #include <chrono>
-#include "KrpcLogger.h"
-void send_request(int thread_id, std::atomic<int> &success_count, std::atomic<int> &fail_count)
-{
+#include <glog/logging.h>
+#include <thread>
 
-    // 演示用远程发布rpc方法Login
-    Kuser::UserServiceRpc_Stub stub(new KrpcChannel(false));
+static void send_request(int thread_id, std::atomic<int> &success_count, std::atomic<int> &fail_count)
+{
+    Kuser::UserServiceRpc_Stub stub(new KrpcChannel());
 
     // rpc方法请求参数
     Kuser::LoginRequest request;
@@ -19,23 +18,17 @@ void send_request(int thread_id, std::atomic<int> &success_count, std::atomic<in
 
     // rpc方法响应参数
     Kuser::LoginResponse response;
-    Krpccontroller controller;                             // 我们重写的Rpchannel继承google的rpc框架的rpcchannel,形成多态
-    stub.Login(&controller, &request, &response, nullptr); // 父类Rpchannel->子类Rpchannle::callmethod
-    // 一次rpc调用完成，读调用的结果
-    if (controller.Failed())
-    {
-        std::cout << controller.ErrorText() << std::endl;
-    }
-    else
-    {
-        if (0 == response.result().errcode())
-        {
-            std::cout << "rpc login response success:" << response.success() << std::endl;
+    KrpcController controller;
+    stub.Login(&controller, &request, &response, nullptr); // 父类Rpchannel->子类Rpchannel::callmethod
+    // 读调用的结果
+    if (controller.Failed()) {
+        LOG(ERROR) << controller.ErrorText();
+    } else {
+        if (0 == response.result().errcode()) {
+            LOG(INFO) << "rpc login response success: " << response.success();
             success_count++;
-        }
-        else
-        {
-            std::cout << "rpc login response error : " << response.result().errmsg() << std::endl;
+        } else {
+            LOG(ERROR) << "rpc login response error: " << response.result().errmsg();
             fail_count++;
         }
     }
@@ -43,10 +36,9 @@ void send_request(int thread_id, std::atomic<int> &success_count, std::atomic<in
 
 int main(int argc, char **argv)
 {
-    // 整个程序启动以后，想使用krpc框架就要先调用初始化函数(只初始化一次)
-    KrpcApplication::Init(argc, argv);
-    KrpcLogger logger("MyRPC");
-    const int thread_count = 1000;      // 并发线程数
+    KrpcConfig::InitEnv(argc, argv);
+
+    const int thread_count = std::thread::hardware_concurrency(); // 并发线程数
     const int requests_per_thread = 10; // 每个线程发送的请求数
 
     std::vector<std::thread> threads;
@@ -55,23 +47,21 @@ int main(int argc, char **argv)
 
     auto start_time = std::chrono::high_resolution_clock::now(); // 开始时间
     // 启动多线程进行并发测试
-    for (int i = 0; i < thread_count; i++)
-    {
-        threads.emplace_back([argc, argv, i, &success_count, &fail_count, requests_per_thread]()
-                             {
-        for(int j=0;j<requests_per_thread;j++)
-        {
-          send_request(i,success_count,fail_count);
-        } });
+    for (int i = 0; i < thread_count; i++) {
+        threads.emplace_back([i, &success_count, &fail_count]() {
+            for (int j = 0; j < requests_per_thread; j++) {
+                send_request(i, success_count, fail_count);
+            }
+        });
     }
-    for (auto &t : threads)
-    {
+    for (auto &t : threads) {
         t.join();
     }
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end_time - start_time;
 
     // 输出统计结果
+    LOG(INFO) << "==================================";
     LOG(INFO) << "Total requests: " << thread_count * requests_per_thread;
     LOG(INFO) << "Success count: " << success_count;
     LOG(INFO) << "Fail count: " << fail_count;

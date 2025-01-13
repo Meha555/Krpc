@@ -1,13 +1,23 @@
-#ifndef _Krpcconfig_h
-#define _Krpcconfig_h
-#include <unordered_map>
+#pragma once
+
+#include <optional>
 #include <string>
-class Krpcconfig{
-    public:
-    void LoadConfigFile(const char *config_file);//加载配置文件
-    std::string Load(const std::string &key);//查找key对应的value
-    private:
-    std::unordered_map<std::string, std::string> config_map;
-    void Trim(std::string &read_buf);//去掉字符串前后的空格
+#include <unordered_map>
+
+class KrpcConfig
+{
+public:
+    static KrpcConfig &Instance();
+    // 解析命令行参数
+    static void InitEnv(int argc, char **argv);
+    // 加载配置文件
+    void LoadConfigFile(const char *config_file);
+    // 查找key对应的value
+    std::optional<std::string> Lookup(const std::string &key);
+
+private:
+    // 去掉字符串前后的空格
+    void Trim(std::string &read_buf);
+
+    std::unordered_map<std::string, std::string> m_config_map;
 };
-#endif

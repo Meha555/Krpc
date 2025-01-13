@@ -1,29 +1,45 @@
 #include "Krpccontroller.h"
-Krpccontroller::Krpccontroller(){
-    m_failed = false;;
-    m_errText = "";
+
+KrpcController::KrpcController()
+    : m_failed(false)
+    , m_canceled(false)
+{
 }
- void Krpccontroller::Reset(){
-        m_failed = false;
-        m_errText = "";
- }
- bool Krpccontroller::Failed() const{
+
+void KrpcController::Reset()
+{
+    m_failed = false;
+    m_canceled = false;
+    m_errText.clear();
+}
+
+bool KrpcController::Failed() const
+{
     return m_failed;
- }
- std::string Krpccontroller::ErrorText() const{
+}
+
+std::string KrpcController::ErrorText() const
+{
     return m_errText;
- }
- void Krpccontroller::SetFailed(const std::string &reason){
+}
+
+void KrpcController::SetFailed(const std::string &reason)
+{
     m_failed = true;
     m_errText = reason;
- }
- //以下功能未实现rpc服务端提供的取消功能
- void Krpccontroller::StartCancel(){
-
- }
-bool Krpccontroller::IsCanceled() const{
-   return false;
 }
-void Krpccontroller::NotifyOnCancel(google::protobuf::Closure* callback){
 
+void KrpcController::StartCancel()
+{
+    m_canceled = true;
+}
+
+bool KrpcController::IsCanceled() const
+{
+    return m_canceled;
+}
+
+void KrpcController::NotifyOnCancel(google::protobuf::Closure *callback)
+{
+    assert(m_canceled);
 }
